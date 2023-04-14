@@ -2,6 +2,7 @@ import express from 'express';
 import { config } from 'dotenv';
 import { Telegraf, session } from 'telegraf';
 import cron from 'node-cron';
+
 import getMainMenu from './keyboards.js';
 import { chunkArray, isParticipant } from './utils.js';
 
@@ -47,16 +48,16 @@ bot.start((ctx) => {
     ));
   }).then(() => {
     /**
-     * В 9:30 с ПН-ПТ бот присылает уведомление
+     * В 10:00 с ПН-ПТ бот присылает уведомление
      */
-    cron.schedule('30 9 * * 0-5', () => {
+    cron.schedule('0 10 * * 0-5', () => {
       const { id } = ctx.chat;
       const { db } = bot.context;
       const { length } = db;
 
       bot.telegram.sendMessage(
         id,
-        `Осталось 30мин. до конца регистрации на обед!\n\nНас уже ${length}!`,
+        `На часах 10:00, скорее регистрируйся!\n\nНас уже ${length}!`,
       );
     });
   });
@@ -68,12 +69,18 @@ bot.start((ctx) => {
  */
 bot.hears('Участвовать  🙋🏼‍♂️', (ctx) => {
   const { from } = ctx.message;
-  const { db } = ctx;
+  const { membersInGroup } = ctx.state;
 
-  if (isParticipant(db, from)) {
+  // каждые 10 минут перемешивать коллекцию с участниками
+  const sortIntervId = setInterval(() => {
+    bot.context.db.sort(() => Math.random() - 0.5);
+    // console.log(bot.context.db);
+  }, 60000);
+
+  if (isParticipant(bot.context.db, from)) {
     ctx.reply('Вы уже участвуете!');
   } else {
-    db.push(from);
+    bot.context.db.push(from);
 
     ctx.replyWithHTML(
       'Наш бот подберёт вам компанию на обед.\n\n'
@@ -81,21 +88,22 @@ bot.hears('Участвовать  🙋🏼‍♂️', (ctx) => {
       + 'За час до обеда бот пришлёт оповещение!',
     );
 
-    const { membersInGroup } = ctx.state;
     /**
-     * В 10:00 с ПН-ПТ бот формирует группы из всех участников
+     * В 11:00 с ПН-ПТ бот формирует группы из всех участников
      * и каждому участнику присылает уведомление о сформированных группах
      */
     cron.schedule('0 11 * * 0-5', () => {
-      const groups = chunkArray(db, membersInGroup);
+      const chunkedGroups = chunkArray(bot.context.db, membersInGroup);
 
-      groups.forEach((group) => {
+      clearInterval(sortIntervId);
+
+      chunkedGroups.forEach((group) => {
         const participants = group.map((person) => [person.first_name, person.last_name]);
         const list = participants.map((person) => person.join(' ')).join('\n');
 
         ctx.replyWithHTML(
           'Группа:\n\n'
-          + `${list}`,
+              + `${list}`,
         );
       });
     });
@@ -107,12 +115,12 @@ bot.hears('Участвовать  🙋🏼‍♂️', (ctx) => {
  * о текущем кол-ве пользователей в коллекции в виде списка
  */
 bot.hears('Список участников  👩‍💼👨‍💼🧑🏻‍💼', (ctx) => {
-  const { db } = ctx;
+  const { db } = bot.context;
 
   if (db.length === 0) {
     ctx.reply('Список пуст.\nСтаньте первым участником!');
   } else {
-    const participants = db.map((person) => [person.first_name, person.last_name]);
+    const participants = bot.context.db.map((person) => [person.first_name, person.last_name]);
     const list = participants.map((person) => person.join(' ')).join('\n');
 
     ctx.reply(list);
@@ -126,7 +134,7 @@ bot.hears('Список участников  👩‍💼👨‍💼🧑🏻‍�
  * (удобно для повара, чтобы узнать на какое кол-во людей готовить)
  */
 bot.hears('Общее количество  🧮', (ctx) => {
-  const { db } = ctx;
+  const { db } = bot.context;
   const { length } = db;
 
   ctx.reply(`Общее количество людей: ${length} чел.`);
@@ -154,10 +162,10 @@ bot.hears('Не пойду  🚫', (ctx) => {
 });
 
 /**
- * В 15:00 с ПН-ПТ бот обнуляет коллекцию участников
+ * В 14:00 с ПН-ПТ бот обнуляет коллекцию участников
  * ВНИМАНИЕ! Происходит замена текущей коллекции на пустую
  */
-cron.schedule('0 15 * * 0-5', () => {
+cron.schedule('0 14 * * 0-5', () => {
   const emptyArray = [];
   bot.context.db = emptyArray;
 });
@@ -165,9 +173,7 @@ cron.schedule('0 15 * * 0-5', () => {
 bot.catch((err, ctx) => {
   console.log(`Ooops, encountered an error for ${ctx.updateType}`, err);
 });
-bot.start((ctx) => {
-  throw new Error(`Example error ${ctx}`);
-});
+
 bot.launch();
 
 // Enable graceful stop
