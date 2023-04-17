@@ -4,7 +4,12 @@ import { Telegraf, session } from 'telegraf';
 import cron from 'node-cron';
 
 import getMainMenu from './keyboards.js';
-import { chunkArray, isParticipant } from './utils.js';
+import {
+  chunkArray,
+  isParticipant,
+  pushUserToColl,
+  sendMessage,
+} from './utils.js';
 
 config();
 const app = express();
@@ -24,7 +29,22 @@ bot.context.state = {
  */
 bot.context.db = [];
 
+// Объект с шаблонами сообщений
+const messages = {
+  greetingMessage: `На часах 10:00, скорее регистрируйся!\n\nНас уже ${bot.context.db.length}!`,
+  lunchMessage: 'Группа:\n\n',
+};
+
+// Таймер для дальнейшей сортировки коллекции пользователей
+let sortIntervId;
+
 bot.use(session());
+
+/**
+ * В 10:00 с ПН-ПТ бот присылает уведомление всем,
+ * кто хоть раз инициализировал бота
+ */
+cron.schedule('0 10 * * 0-5', () => sendMessage(bot, messages.greetingMessage));
 
 /**
  * При старте, для продолжения работы с ботом, нужно ввести пароль
@@ -46,20 +66,13 @@ bot.start((ctx) => {
     + 'Наша цель - <b><i>сблизить друг друга</i></b> за одним столом! 👨‍💼🥗👩‍💼',
       getMainMenu(),
     ));
-  }).then(() => {
-    /**
-     * В 10:00 с ПН-ПТ бот присылает уведомление
-     */
-    cron.schedule('0 10 * * 0-5', () => {
-      const { id } = ctx.chat;
-      const { db } = bot.context;
-      const { length } = db;
 
-      bot.telegram.sendMessage(
-        id,
-        `На часах 10:00, скорее регистрируйся!\n\nНас уже ${length}!`,
-      );
-    });
+    /**
+     * Добавить пользователя в отдельный файл с коллекцией.
+     * Эта коллекция будет использоваться для рассылки уведомлений
+     * при перезапуске приложения или неполадках на сервере
+     */
+    pushUserToColl(ctx);
   });
 });
 
@@ -69,10 +82,9 @@ bot.start((ctx) => {
  */
 bot.hears('Участвовать  🙋🏼‍♂️', (ctx) => {
   const { from } = ctx.message;
-  const { membersInGroup } = ctx.state;
 
   // каждые 10 минут перемешивать коллекцию с участниками
-  const sortIntervId = setInterval(() => {
+  sortIntervId = setInterval(() => {
     bot.context.db.sort(() => Math.random() - 0.5);
     // console.log(bot.context.db);
   }, 60000);
@@ -87,27 +99,25 @@ bot.hears('Участвовать  🙋🏼‍♂️', (ctx) => {
       + '<b><i>Проявите интерес к собеседнику, общайтесь на различные темы. Обсудите ваши впечатления или эмоции!</i></b>      💁‍♂️💬   🙋‍♀️ 🤷🙍🏻\n\n'
       + 'За час до обеда бот пришлёт оповещение!',
     );
-
-    /**
-     * В 11:00 с ПН-ПТ бот формирует группы из всех участников
-     * и каждому участнику присылает уведомление о сформированных группах
-     */
-    cron.schedule('0 11 * * 0-5', () => {
-      const chunkedGroups = chunkArray(bot.context.db, membersInGroup);
-
-      clearInterval(sortIntervId);
-
-      chunkedGroups.forEach((group) => {
-        const participants = group.map((person) => [person.first_name, person.last_name]);
-        const list = participants.map((person) => person.join(' ')).join('\n');
-
-        ctx.replyWithHTML(
-          'Группа:\n\n'
-              + `${list}`,
-        );
-      });
-    });
   }
+});
+
+/**
+ * В 11:00 с ПН-ПТ бот формирует группы из всех участников
+ * и каждому участнику присылает уведомление о сформированных группах
+ */
+cron.schedule('0 11 * * 0-5', () => {
+  const { membersInGroup } = bot.context.state;
+  const chunkedGroups = chunkArray(bot.context.db, membersInGroup);
+
+  clearInterval(sortIntervId);
+
+  chunkedGroups.forEach((group) => {
+    const participants = group.map((person) => [person.first_name, person.last_name]);
+    const list = participants.map((person) => person.join(' ')).join('\n');
+
+    sendMessage(bot, `${messages.lunchMessage}${list}`);
+  });
 });
 
 /**
@@ -175,9 +185,5 @@ bot.catch((err, ctx) => {
 });
 
 bot.launch();
-
-// Enable graceful stop
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
 app.listen(process.env.PORT);
