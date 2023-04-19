@@ -31,7 +31,7 @@ bot.context.db = [];
 
 // Объект с шаблонами сообщений
 const messages = {
-  greetingMessage: `На часах 10:00, скорее регистрируйся!\n\nНас уже ${bot.context.db.length}!`,
+  greetingMessage: 'На часах 10:00, скорее регистрируйся!',
   lunchMessage: 'Группа:\n\n',
 };
 
