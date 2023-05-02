@@ -82,3 +82,19 @@ export const sendMessage = (bot, message) => {
     bot.telegram.sendMessage(user.id, message);
   });
 };
+
+/**
+ * Вспомогательная функция для отсеивания участников
+ * совпадения проверяются в файле 'outsidersColl.json' по 'chatID'
+ *
+ * @param {Number} id Уникальный id пользователя
+ * @returns {Boolean} Возвращает 'true' или 'false'
+ */
+export const isOutsider = (id) => {
+  const rawData = readFile('outsidersColl.json');
+  const parsedRawData = JSON.parse(rawData);
+
+  const result = parsedRawData.some((outsider) => outsider.id === id);
+
+  return result;
+};
