@@ -9,6 +9,7 @@ import {
   isParticipant,
   pushUserToColl,
   sendMessage,
+  isOutsider,
 } from './utils.js';
 
 config();
@@ -20,7 +21,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
  * (общее кол-во участников делится на делитель)
  */
 bot.context.state = {
-  membersInGroup: 8,
+  membersInGroup: 10,
 };
 
 /**
@@ -29,10 +30,15 @@ bot.context.state = {
  */
 bot.context.db = [];
 
+// Разбивка групп по времени
+const timings = ['12:00', '12:30', '13:00', '13:30', '14:00'];
+// Индекс текущего времени (timings[currentTime])
+let currentTime = 0;
+
 // Объект с шаблонами сообщений
 const messages = {
   greetingMessage: 'На часах 10:00, скорее регистрируйся!',
-  lunchMessage: 'Группа:\n\n',
+  lunchMessage: `Группа на ${timings[currentTime]}:\n\n`,
 };
 
 // Таймер для дальнейшей сортировки коллекции пользователей
@@ -82,6 +88,16 @@ bot.start((ctx) => {
 bot.hears('Участвовать  🙋🏼‍♂️', (ctx) => {
   const { from } = ctx.message;
 
+  // Аутсайдерам не разрешаем участвовать
+  if (isOutsider(Number(from.id))) {
+    ctx.replyWithHTML(
+      'Извините, участвуют только сотрудники из офиса.\n\n'
+      + 'Если планируете обедать в офисе, присоединяйтесь к последней группе!',
+    );
+
+    return;
+  }
+
   // каждые 10 минут перемешивать коллекцию с участниками
   sortIntervId = setInterval(() => {
     bot.context.db.sort(() => Math.random() - 0.5);
@@ -116,6 +132,7 @@ cron.schedule('0 11 * * 1-5', () => {
     const list = participants.map((person) => person.join(' ')).join('\n');
 
     sendMessage(bot, `${messages.lunchMessage}${list}`);
+    currentTime += 1;
   });
 });
 
@@ -177,6 +194,8 @@ bot.hears('Не пойду  🚫', (ctx) => {
 cron.schedule('0 14 * * 1-5', () => {
   const emptyArray = [];
   bot.context.db = emptyArray;
+
+  currentTime = 0;
 });
 
 bot.catch((err, ctx) => {
