@@ -38,7 +38,7 @@ let currentTime = 0;
 // Объект с шаблонами сообщений
 const messages = {
   greetingMessage: 'На часах 10:00, скорее регистрируйся!',
-  lunchMessage: `Группа на ${timings[currentTime]}:\n\n`,
+  lunchMessage: 'Группа на ',
 };
 
 // Таймер для дальнейшей сортировки коллекции пользователей
@@ -131,7 +131,7 @@ cron.schedule('0 11 * * 1-5', () => {
     const participants = group.map((person) => [person.first_name, person.last_name]);
     const list = participants.map((person) => person.join(' ')).join('\n');
 
-    sendMessage(bot, `${messages.lunchMessage}${list}`);
+    sendMessage(bot, `${messages.lunchMessage}${timings[currentTime]}:\n\n${list}`);
     currentTime += 1;
   });
 });
