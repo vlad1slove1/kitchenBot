@@ -60,12 +60,10 @@ export const pushUserToColl = async (ctx) => {
     uniqParsedColl.push(from);
     const stringifiedData = JSON.stringify(uniqParsedColl);
 
-    try {
-      writeFile(getFixturePath('usersColl.json'), stringifiedData);
-      console.log('Файл был сохранен!');
-    } catch (error) {
-      console.error(error.message);
-    }
+    writeFile(getFixturePath('usersColl.json'), JSON.stringify(stringifiedData), (err) => {
+      if (err) throw err;
+      console.log('File has been updated!');
+    });
   }
 };
 
