@@ -1,5 +1,5 @@
 import { dirname, resolve } from 'path';
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFile } from 'fs';
 import { fileURLToPath } from 'url';
 import _ from 'lodash';
 
@@ -42,7 +42,7 @@ export const isParticipant = (db, from) => db.some((person) => person.id === fro
  *
  * @param {Object} ctx Объект контекста Telegraf API
  */
-export const pushUserToColl = (ctx) => {
+export const pushUserToColl = async (ctx) => {
   const { from } = ctx.message;
   const rawFile = readFile('usersColl.json');
   const parsedColl = JSON.parse(rawFile);
@@ -60,10 +60,12 @@ export const pushUserToColl = (ctx) => {
     uniqParsedColl.push(from);
     const stringifiedData = JSON.stringify(uniqParsedColl);
 
-    writeFileSync(getFixturePath('usersColl.json'), stringifiedData, (err) => {
-      if (err) throw err;
+    try {
+      writeFile(getFixturePath('usersColl.json'), stringifiedData);
       console.log('Файл был сохранен!');
-    });
+    } catch (error) {
+      console.error(error.message);
+    }
   }
 };
 
